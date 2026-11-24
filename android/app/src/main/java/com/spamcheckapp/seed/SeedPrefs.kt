@@ -22,7 +22,11 @@ object SeedPrefs {
   private fun prefs(ctx: Context): SharedPreferences =
       ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
-  fun baseUrl(ctx: Context): String = prefs(ctx).getString(KEY_BASE_URL, "") ?: ""
+  /** Production Qualia-Voice (dialer) server; used until another URL is saved in the app. */
+  const val DEFAULT_BASE_URL = "https://dialerserver.qualiabits.com"
+
+  fun baseUrl(ctx: Context): String =
+      prefs(ctx).getString(KEY_BASE_URL, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_BASE_URL
 
   fun token(ctx: Context): String = prefs(ctx).getString(KEY_TOKEN, "") ?: ""
 

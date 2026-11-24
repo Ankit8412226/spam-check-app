@@ -79,8 +79,8 @@ Open **Spam Check Seed**, then:
 
 In the **Settings** section:
 
-- **Server base URL**: the Qualia-Voice base URL, e.g. `https://voice.example.com` (without
-  `/api`; a trailing slash is removed automatically).
+- **Server base URL**: pre-filled with production, `https://dialerserver.qualiabits.com` (the
+  Qualia-Voice dialer server, without `/api`). Change it only to point at another server.
 - **Seed token**: the token the admin panel shows **once** when the seed is created
   (sent as header `X-Seed-Token`).
 - Tap **Save**, then **Send test heartbeat**. "Heartbeat OK" with the seed label means the phone is
