@@ -9,7 +9,7 @@ line. When the call rings, the app:
    notification, the Truecaller overlay, operator labels such as Airtel's "Suspected Spam") through
    an Android **AccessibilityService**,
 3. looks for spam keywords in that text,
-4. rejects the call after **8 seconds** of ringing,
+4. if the server confirms it is one of our seed calls, rejects it after **8 seconds** of ringing,
 5. POSTs a report to the backend (and retries if that fails),
 6. sends a heartbeat every 3 hours, on app open and after each report, so the admin can see the
    phone is alive.
@@ -17,8 +17,11 @@ line. When the call rings, the app:
 Detection and reporting run in native Kotlin, so they work while the app is in the background.
 The React Native screen is only for settings, status and the log.
 
-> **The seed phone rejects and reports EVERY incoming call.** Use a phone and SIM that only receive
-> our test calls.
+> **Only our seed calls are touched.** The moment the phone rings, the app asks the server
+> (`POST /api/spam-check/seed/ringing`) whether one of our seed calls to this phone is ringing right
+> now. Only then does it read the screen, reject the call at 8 s and report it. Any other call (a
+> person calling the seed SIM) rings normally and is not reported; so does a call when the server
+> cannot be reached.
 
 ---
 

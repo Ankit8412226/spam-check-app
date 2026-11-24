@@ -20,9 +20,12 @@ import org.json.JSONObject
 /**
  * Process-wide state machine for one incoming call ("session"):
  *
- *   RINGING  -> start session, ask the accessibility service to read the screen every second,
- *               schedule auto-reject at [REJECT_AFTER_MS]
- *   OFFHOOK / IDLE -> finish session, build the report, hand it to [SeedApi.submitReport]
+ *   RINGING  -> start session, read the screen every second, and ask the server whether this is
+ *               one of our seed calls ([SeedApi.isOurCallBlocking]).
+ *                 ours      -> auto-reject at [REJECT_AFTER_MS] and report when it ends
+ *                 not ours  -> leave the call alone: no reject, no report (a person calling)
+ *                 no answer -> treated as not ours (never cut a call we are unsure about)
+ *   OFFHOOK / IDLE -> finish session; only our seed calls are reported ([SeedApi.submitReport])
  *
  * Fed by [CallStateWatcher] (call state + number) and [CallScreenAccessibilityService] (screen text).
  * All state changes happen on the main thread.
@@ -41,6 +44,10 @@ object CallMonitor {
 
   private class Session(val startMs: Long) {
     var number: String? = null
+    /** null until the server answered "is this ours?" */
+    var ours: Boolean? = null
+    /** set when the call ended before the server answered */
+    var endMs: Long? = null
     val texts = LinkedHashSet<String>()
     var rejected = false
     var rejectError: String? = null
@@ -75,7 +82,13 @@ object CallMonitor {
           current = s
           Log.i(TAG, "Incoming call ringing, number=${number ?: "?"}")
           main.post(captureLoop)
-          main.postDelayed(rejectRunnable, REJECT_AFTER_MS)
+          val session: Session = s
+          val ctx = appContext!!
+          Thread {
+                val ours = SeedApi.isOurCallBlocking(ctx, number)
+                main.post { decide(session, ours) }
+              }
+              .start()
         }
         if (!number.isNullOrBlank() && s.number.isNullOrBlank()) s.number = number
       }
@@ -94,8 +107,30 @@ object CallMonitor {
         current = null
         main.removeCallbacks(captureLoop)
         main.removeCallbacks(rejectRunnable)
-        finish(ctx, s, System.currentTimeMillis())
+        val endMs = System.currentTimeMillis()
+        when (s.ours) {
+          true -> finish(ctx, s, endMs)
+          null -> s.endMs = endMs // [decide] finishes it if the server says it was ours
+          false -> Log.i(TAG, "Call ended; not a seed call, not reported")
+        }
       }
+
+  /** The server's answer to "is this ringing call ours?" (main thread). */
+  private fun decide(s: Session, ours: Boolean?) {
+    val ctx = appContext ?: return
+    s.ours = ours == true
+    if (s.ours != true) {
+      Log.i(TAG, "Not a seed call (server said ${ours ?: "nothing"}): leaving it alone")
+      if (current === s) main.removeCallbacks(captureLoop)
+      return
+    }
+    if (current === s) {
+      val wait = (s.startMs + REJECT_AFTER_MS - System.currentTimeMillis()).coerceAtLeast(0L)
+      main.postDelayed(rejectRunnable, wait)
+    } else {
+      s.endMs?.let { finish(ctx, s, it) } // it ended while we were asking
+    }
+  }
 
   /** Called by the accessibility service with every text it read (any thread). */
   fun addTexts(texts: Collection<String>) {

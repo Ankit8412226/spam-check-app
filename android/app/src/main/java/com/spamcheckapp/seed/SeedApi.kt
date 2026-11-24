@@ -44,7 +44,13 @@ object SeedApi {
   }
 
   /** One POST attempt. */
-  fun post(ctx: Context, path: String, body: JSONObject): Result {
+  fun post(
+      ctx: Context,
+      path: String,
+      body: JSONObject,
+      connectTimeoutMs: Int = 15_000,
+      readTimeoutMs: Int = 20_000,
+  ): Result {
     val base = SeedPrefs.baseUrl(ctx)
     val token = SeedPrefs.token(ctx)
     if (base.isBlank() || token.isBlank()) {
@@ -54,8 +60,8 @@ object SeedApi {
     return try {
       conn = (URL(base + path).openConnection() as HttpURLConnection).apply {
         requestMethod = "POST"
-        connectTimeout = 15_000
-        readTimeout = 20_000
+        connectTimeout = connectTimeoutMs
+        readTimeout = readTimeoutMs
         doOutput = true
         setRequestProperty("Content-Type", "application/json; charset=utf-8")
         setRequestProperty("Accept", "application/json")
@@ -75,6 +81,23 @@ object SeedApi {
     } finally {
       conn?.disconnect()
     }
+  }
+
+  /**
+   * The phone is ringing: is it one of our seed calls? true / false from the server, or null when
+   * the server could not be asked (no network, not configured). Blocking: call off the main thread.
+   */
+  fun isOurCallBlocking(ctx: Context, number: String?): Boolean? {
+    val res =
+        post(
+            ctx,
+            "/api/spam-check/seed/ringing",
+            JSONObject().put("caller_number", number ?: ""),
+            connectTimeoutMs = 4_000,
+            readTimeoutMs = 4_000,
+        )
+    if (!res.ok) return null
+    return res.json()?.optBoolean("ours", false)
   }
 
   /** POST with retries. 4xx (except 408/429) is not retried: the request itself is wrong. */
