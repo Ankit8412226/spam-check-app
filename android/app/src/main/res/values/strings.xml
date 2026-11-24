@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Spam Check Seed</string>
+    <string name="accessibility_service_label">Spam Check Seed - call screen reader</string>
+    <string name="accessibility_service_description">Reads the incoming-call screen (caller ID, Truecaller overlay, operator label) only while a call is ringing, so this company test phone can report whether our numbers are labelled as spam. Nothing else is read or stored.</string>
+</resources>
