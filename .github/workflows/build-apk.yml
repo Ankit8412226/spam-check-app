@@ -29,10 +29,12 @@ jobs:
           java-version: 17
           cache: gradle
 
-      - name: Android SDK (licences, platform 37, build-tools 37.0.0)
+      # Licences accepted here; Gradle downloads the exact platform / build-tools React Native asks for
+      # (compileSdk 37, build-tools 37.0.0) itself, under the SDK's own package names.
+      - name: Android SDK (licences)
         uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-37 build-tools;37.0.0"
+          packages: "platform-tools"
 
       - name: Install JS dependencies
         run: npm ci
