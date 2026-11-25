@@ -84,7 +84,7 @@ Open **Spam Check Seed**, then:
    switch again.
 
    In both modes nothing on screen is read until the server confirms the ringing call is one of
-   ours, and only call-screen apps (dialer, in-call UI, Truecaller-style caller ID, System UI) are read.
+   ours, and only call-screen apps (dialer, in-call UI, Truecaller-style caller ID) are read; the notification shade / System UI is not.
 3. **Battery optimisation settings** -> Spam Check Seed -> **Don't optimise / Unrestricted**.
    On Xiaomi / Vivo / Oppo / Realme / Samsung also enable **Autostart** and lock the app in the
    recents screen; otherwise the OS may kill the service.
