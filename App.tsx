@@ -262,7 +262,8 @@ function App(): React.JSX.Element {
   const hb = parseHeartbeat(status?.lastHeartbeat);
   const permissionsOk = !!status && status.readPhoneState && status.readCallLog && status.answerPhoneCalls
     && (status.sdkInt < 33 || status.postNotifications);
-  const accessibilityOk = !!status && status.accessibilityEnabled && status.accessibilityConnected;
+  const accessibilityOk = !!status
+    && (status.accessibilityOnDemand || (status.accessibilityEnabled && status.accessibilityConnected));
   const batteryOk = !!status && status.batteryOptimizationIgnored;
   const connectedOk = !!status && status.configured && !!hb?.ok;
   const ready = permissionsOk && accessibilityOk && connectedOk;
@@ -317,11 +318,17 @@ function App(): React.JSX.Element {
                   title="Read the call screen"
                   done={accessibilityOk}
                   detail={
-                    status.accessibilityEnabled && !status.accessibilityConnected
-                      ? 'Turned on but not connected yet – turn it off and on again'
-                      : 'Accessibility → Spam Check → On'
+                    status.accessibilityOnDemand
+                      ? 'Automatic: turns on only while our test call rings, off the rest of the time'
+                      : status.accessibilityEnabled && !status.accessibilityConnected
+                        ? 'Turned on but not connected yet – turn it off and on again'
+                        : 'Accessibility → Spam Check → On (or the one-time adb command in the README to make it automatic)'
                   }
-                  action={<Btn title="Open" onPress={() => SpamCheck.openAccessibilitySettings()} />}
+                  action={
+                    status.accessibilityOnDemand
+                      ? undefined
+                      : <Btn title="Open" onPress={() => SpamCheck.openAccessibilitySettings()} />
+                  }
                 />
                 <Step
                   n={3}

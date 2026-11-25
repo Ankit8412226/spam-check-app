@@ -35,6 +35,8 @@ class SeedMonitorService : Service() {
     goForeground()
     running = true
     CallMonitor.ensureWatching(this)
+    // on-demand mode: the screen reader stays off until a seed call rings
+    if (!CallMonitor.isCapturing) AccessibilityToggle.turnOff(this)
     handler.postDelayed(heartbeatLoop, FIRST_HEARTBEAT_DELAY_MS)
   }
 

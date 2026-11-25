@@ -13,6 +13,8 @@ export type SeedStatus = {
   postNotifications: boolean;
   accessibilityEnabled: boolean;
   accessibilityConnected: boolean;
+  /** WRITE_SECURE_SETTINGS granted over adb: the reader turns on only during our seed calls. */
+  accessibilityOnDemand: boolean;
   foregroundServiceRunning: boolean;
   callListenerRegistered: boolean;
   batteryOptimizationIgnored: boolean;

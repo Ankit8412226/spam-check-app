@@ -20,9 +20,10 @@ import org.json.JSONObject
 /**
  * Process-wide state machine for one incoming call ("session"):
  *
- *   RINGING  -> start session, read the screen every second, and ask the server whether this is
- *               one of our seed calls ([SeedApi.isOurCallBlocking]).
- *                 ours      -> auto-reject at [REJECT_AFTER_MS] and report when it ends
+ *   RINGING  -> start session and ask the server whether this is one of our seed calls
+ *               ([SeedApi.isOurCallBlocking]). Nothing on screen is read before the answer.
+ *                 ours      -> (on-demand mode: turn the screen reader on), read the screen every
+ *                              second, auto-reject at [REJECT_AFTER_MS] and report when it ends
  *                 not ours  -> leave the call alone: no reject, no report (a person calling)
  *                 no answer -> treated as not ours (never cut a call we are unsure about)
  *   OFFHOOK / IDLE -> finish session; only our seed calls are reported ([SeedApi.submitReport])
@@ -58,8 +59,9 @@ object CallMonitor {
 
   @Volatile private var current: Session? = null
 
-  val isRinging: Boolean
-    get() = current != null
+  /** True only while one of OUR seed calls rings: the only time the screen is read. */
+  val isCapturing: Boolean
+    get() = current?.ours == true
 
   val isWatcherRegistered: Boolean
     get() = watcher?.isRegistered == true
@@ -84,7 +86,6 @@ object CallMonitor {
           s = Session(System.currentTimeMillis())
           current = s
           Log.i(TAG, "Incoming call ringing, number=${number ?: "?"}")
-          main.post(captureLoop)
           val session: Session = s
           val ctx = appContext!!
           Thread {
@@ -105,12 +106,13 @@ object CallMonitor {
       main.post {
         val ctx = appContext ?: return@post
         val s = current ?: return@post
-        // last look at the screen before the session closes
-        CallScreenAccessibilityService.instance?.captureNow()
+        // last look at the screen before the session closes (our calls only)
+        if (s.ours == true) CallScreenAccessibilityService.instance?.captureNow()
         current = null
         main.removeCallbacks(captureLoop)
         main.removeCallbacks(rejectRunnable)
         val endMs = System.currentTimeMillis()
+        if (s.ours == true) AccessibilityToggle.turnOff(ctx)
         when (s.ours) {
           true -> finish(ctx, s, endMs)
           null -> s.endMs = endMs // [decide] finishes it if the server says it was ours
@@ -123,11 +125,12 @@ object CallMonitor {
     val ctx = appContext ?: return
     s.ours = ours == true
     if (s.ours != true) {
-      Log.i(TAG, "Not a seed call (server said ${ours ?: "nothing"}): leaving it alone")
-      if (current === s) main.removeCallbacks(captureLoop)
+      Log.i(TAG, "Not a seed call (server said ${ours ?: "nothing"}): leaving it alone, nothing read")
       return
     }
     if (current === s) {
+      AccessibilityToggle.turnOn(ctx) // on-demand mode; no-op when the user keeps it on
+      main.post(captureLoop)
       val wait = (s.startMs + REJECT_AFTER_MS - System.currentTimeMillis()).coerceAtLeast(0L)
       main.postDelayed(rejectRunnable, wait)
     } else {
@@ -139,7 +142,7 @@ object CallMonitor {
   fun addTexts(texts: Collection<String>) {
     if (texts.isEmpty()) return
     main.post {
-      val s = current ?: return@post
+      val s = current?.takeIf { it.ours == true } ?: return@post
       for (raw in texts) {
         if (s.texts.size >= MAX_COLLECTED_TEXTS) break
         val t = raw.replace(Regex("\\s+"), " ").trim()
@@ -155,7 +158,7 @@ object CallMonitor {
   fun noteApp(packageName: CharSequence?, read: Boolean) {
     val pkg = packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
     main.post {
-      val s = current ?: return@post
+      val s = current?.takeIf { it.ours == true } ?: return@post
       if (read) s.readApps.add(pkg) else if (pkg !in s.readApps) s.skippedApps.add(pkg)
     }
   }
@@ -163,7 +166,7 @@ object CallMonitor {
   private val captureLoop: Runnable =
       object : Runnable {
         override fun run() {
-          if (current == null) return
+          if (current?.ours != true) return
           CallScreenAccessibilityService.instance?.captureNow()
           main.postDelayed(this, CAPTURE_EVERY_MS)
         }

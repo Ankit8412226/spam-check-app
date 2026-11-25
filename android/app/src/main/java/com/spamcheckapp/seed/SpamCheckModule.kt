@@ -70,6 +70,7 @@ class SpamCheckModule(private val reactContext: ReactApplicationContext) :
             granted(Manifest.permission.POST_NOTIFICATIONS))
     map.putBoolean("accessibilityEnabled", isAccessibilityEnabled(ctx))
     map.putBoolean("accessibilityConnected", CallScreenAccessibilityService.instance != null)
+    map.putBoolean("accessibilityOnDemand", AccessibilityToggle.canToggle(ctx))
     map.putBoolean("foregroundServiceRunning", SeedMonitorService.running)
     map.putBoolean("callListenerRegistered", CallMonitor.isWatcherRegistered)
     map.putBoolean("batteryOptimizationIgnored", isIgnoringBatteryOptimizations(ctx))

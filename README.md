@@ -69,6 +69,22 @@ Open **Spam Check Seed**, then:
 2. **Open Accessibility settings** -> *Installed / Downloaded apps* -> *Spam Check Seed - call
    screen reader* -> turn **on**. Status must show "Accessibility service enabled: YES" and
    "connected: YES".
+
+   **Recommended on a phone that also has banking / UPI apps: automatic mode.** Run this once from
+   a laptop (USB debugging on, `adb` installed):
+
+   ```
+   adb shell pm grant com.spamcheckapp android.permission.WRITE_SECURE_SETTINGS
+   ```
+
+   The app then keeps the call-screen reader **off**, turns it on only while one of our seed calls
+   rings, and off again when the call ends, so PhonePe / GPay / bank apps never see an accessibility
+   service on. Setup step 2 shows "Automatic"; skip the manual switch above. The grant survives app
+   updates (not an uninstall). If a phone (some Xiaomi builds) drops it, step 2 asks for the manual
+   switch again.
+
+   In both modes nothing on screen is read until the server confirms the ringing call is one of
+   ours, and only call-screen apps (dialer, in-call UI, Truecaller-style caller ID, System UI) are read.
 3. **Battery optimisation settings** -> Spam Check Seed -> **Don't optimise / Unrestricted**.
    On Xiaomi / Vivo / Oppo / Realme / Samsung also enable **Autostart** and lock the app in the
    recents screen; otherwise the OS may kill the service.

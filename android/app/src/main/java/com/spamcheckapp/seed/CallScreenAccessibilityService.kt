@@ -11,8 +11,9 @@ import java.util.ArrayDeque
  * Reads the text on screen while a call is ringing: the system dialer / Google Phone incoming-call
  * UI, the heads-up call notification, Truecaller's caller-ID overlay and any operator label.
  *
- * It only collects text while [CallMonitor.isRinging] is true, and only from call-screen apps
- * ([CallScreenPackages]); other apps on screen are ignored.
+ * It only collects text while one of OUR seed calls rings ([CallMonitor.isCapturing]), and only
+ * from call-screen apps ([CallScreenPackages]); other calls and other apps are never read.
+ * In on-demand mode ([AccessibilityToggle]) the service is on only during those calls.
  * It also keeps the process alive (system-bound), so it registers the call-state listener and
  * tries to start [SeedMonitorService].
  */
@@ -26,10 +27,14 @@ class CallScreenAccessibilityService : AccessibilityService() {
     Log.i(TAG, "accessibility service connected")
     CallMonitor.ensureWatching(this)
     SeedMonitorService.start(this)
+    // on-demand mode: switched on for a seed call; read now, the call screen is already up
+    if (CallMonitor.isCapturing) captureNow()
+    // left on by a crash / restart outside a seed call: switch it off again
+    else if (AccessibilityToggle.canToggle(this)) AccessibilityToggle.turnOff(this)
   }
 
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-    if (event == null || !CallMonitor.isRinging) return
+    if (event == null || !CallMonitor.isCapturing) return
     if (event.packageName?.toString() == packageName) return
     val callScreen = CallScreenPackages.isCallScreen(event.packageName)
     CallMonitor.noteApp(event.packageName, callScreen)
