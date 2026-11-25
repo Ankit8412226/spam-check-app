@@ -11,7 +11,8 @@ import java.util.ArrayDeque
  * Reads the text on screen while a call is ringing: the system dialer / Google Phone incoming-call
  * UI, the heads-up call notification, Truecaller's caller-ID overlay and any operator label.
  *
- * It only collects text while [CallMonitor.isRinging] is true; otherwise events are ignored.
+ * It only collects text while [CallMonitor.isRinging] is true, and only from call-screen apps
+ * ([CallScreenPackages]); other apps on screen are ignored.
  * It also keeps the process alive (system-bound), so it registers the call-state listener and
  * tries to start [SeedMonitorService].
  */
@@ -30,6 +31,9 @@ class CallScreenAccessibilityService : AccessibilityService() {
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
     if (event == null || !CallMonitor.isRinging) return
     if (event.packageName?.toString() == packageName) return
+    val callScreen = CallScreenPackages.isCallScreen(event.packageName)
+    CallMonitor.noteApp(event.packageName, callScreen)
+    if (!callScreen) return // WhatsApp, Gmail, launcher ... never count
     // Event text covers the heads-up / notification case, even when the window tree is not exposed.
     val texts = ArrayList<String>()
     event.text?.forEach { cs -> cs?.toString()?.let { texts.add(it) } }
@@ -63,6 +67,9 @@ class CallScreenAccessibilityService : AccessibilityService() {
 
   private fun collect(root: AccessibilityNodeInfo, out: MutableList<String>) {
     if (root.packageName?.toString() == packageName) return // never read our own UI
+    val callScreen = CallScreenPackages.isCallScreen(root.packageName)
+    CallMonitor.noteApp(root.packageName, callScreen)
+    if (!callScreen) return // only call-screen apps
     val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
     queue.add(Pair(root, 0))
     var visited = 0

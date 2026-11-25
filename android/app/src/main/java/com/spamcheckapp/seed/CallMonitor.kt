@@ -49,6 +49,9 @@ object CallMonitor {
     /** set when the call ended before the server answered */
     var endMs: Long? = null
     val texts = LinkedHashSet<String>()
+    /** Apps seen on screen while ringing: read (call screen) or skipped. Sent for diagnosis. */
+    val readApps = LinkedHashSet<String>()
+    val skippedApps = LinkedHashSet<String>()
     var rejected = false
     var rejectError: String? = null
   }
@@ -148,6 +151,15 @@ object CallMonitor {
 
   // ---- timers -------------------------------------------------------------------------------
 
+  /** Called by the accessibility service for every app it saw on screen (any thread). */
+  fun noteApp(packageName: CharSequence?, read: Boolean) {
+    val pkg = packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
+    main.post {
+      val s = current ?: return@post
+      if (read) s.readApps.add(pkg) else if (pkg !in s.readApps) s.skippedApps.add(pkg)
+    }
+  }
+
   private val captureLoop: Runnable =
       object : Runnable {
         override fun run() {
@@ -193,6 +205,8 @@ object CallMonitor {
 
   private fun finish(ctx: Context, s: Session, endMs: Long) {
     val texts = ArrayList(s.texts)
+    val apps = "apps read: ${s.readApps.joinToString().ifEmpty { "none" }}; skipped: " +
+        s.skippedApps.joinToString().ifEmpty { "none" }
     val number = s.number
     // Call log entries are written a moment after the call ends; look the number up off-thread.
     SeedApi.executor.execute {
@@ -203,7 +217,7 @@ object CallMonitor {
         } catch (e: InterruptedException) {}
         finalNumber = numberFromCallLog(ctx, s.startMs)
       }
-      val payload = buildPayload(ctx, s, texts, finalNumber ?: "", endMs)
+      val payload = buildPayload(ctx, s, texts, apps, finalNumber ?: "", endMs)
       Log.i(TAG, "Report: $payload")
       val local = JSONObject().put("reject_error", s.rejectError ?: JSONObject.NULL)
       SeedApi.submitReport(ctx, payload, local)
@@ -214,6 +228,7 @@ object CallMonitor {
       ctx: Context,
       s: Session,
       texts: List<String>,
+      apps: String,
       number: String,
       endMs: Long,
   ): JSONObject {
@@ -221,7 +236,8 @@ object CallMonitor {
     // keep texts that contain a keyword first, then the rest, capped
     val lowerKw = SpamKeywords.KEYWORDS
     val (hit, rest) = texts.partition { t -> lowerKw.any { t.lowercase(Locale.ROOT).contains(it) } }
-    val capped = (hit + rest).take(MAX_REPORT_TEXTS)
+    // the apps line goes first (never capped away); it is not matched against keywords
+    val capped = listOf(apps) + (hit + rest).take(MAX_REPORT_TEXTS - 1)
 
     val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
     iso.timeZone = TimeZone.getTimeZone("UTC")

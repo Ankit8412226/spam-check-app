@@ -45,6 +45,8 @@ object SpamKeywords {
           "caller id & spam",
           "caller id and spam",
           "filter spam calls",
+          // This app's own name, shown in the status bar / notification shade (System UI).
+          "spam check",
       )
 
   /** Returns the keywords (from [KEYWORDS]) found in any of [texts], in list order, no duplicates. */
